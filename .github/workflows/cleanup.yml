@@ -1,0 +1,19 @@
+name: Cleanup Notifications
+
+on:
+  schedule:
+    - cron: '0 0 * * *'  # Runs at 00:00 UTC every day
+  workflow_dispatch:      # Allows manual trigger from GitHub UI
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Trigger cleanup endpoint
+        run: |
+          curl -X POST \
+            -H "Authorization: Bearer ${{ secrets.CLEANUP_API_KEY }}" \
+            ${{ secrets.APP_URL }}/api/cleanup
+        env:
+          APP_URL: ${{ secrets.APP_URL }} 

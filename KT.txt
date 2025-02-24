@@ -1,0 +1,327 @@
+AI-POWERED GRIEVANCE MANAGEMENT SYSTEM - KNOWLEDGE TRANSFER DOCUMENT
+=================================================================
+
+TABLE OF CONTENTS
+----------------
+1. Architecture Overview
+2. Core Components
+3. Development Environment
+4. Common Issues & Solutions
+5. Performance Considerations
+6. Security Measures
+7. Testing Strategy
+8. Deployment Process
+9. Maintenance Guidelines
+10. Future Improvements
+
+1. ARCHITECTURE OVERVIEW
+-----------------------
+The system follows a modern serverless architecture with Next.js 14 and Supabase.
+
+Key Architectural Decisions:
+- App Router for server-side rendering and routing
+- Edge Functions for serverless computing
+- Real-time subscriptions for live updates
+- IPFS for immutable record storage
+- Multi-language support using LibreTranslate
+- AI processing using Natural.js and sentiment analysis
+
+Data Flow:
+1. Client Request → Next.js Server → Supabase
+2. Real-time Updates: Supabase → WebSocket → Client
+3. File Processing: Client → OCR → AI Analysis → Storage
+4. Blockchain: Action → IPFS → Supabase Record
+
+2. CORE COMPONENTS
+-----------------
+
+a) Authentication System (src/contexts/AuthContext.tsx)
+- Uses Supabase Auth
+- Role-based access control
+- Session persistence
+- Anonymous submission support
+POTENTIAL ISSUES:
+- Token expiration handling
+- Race conditions during role checks
+- Session sync across tabs
+
+b) AI Processing (src/lib/ai-processing.ts)
+- Text analysis pipeline
+- Category prediction
+- Priority assessment
+- Pattern detection
+KNOWN LIMITATIONS:
+- Memory usage with large texts
+- Processing time for complex analysis
+- Language detection edge cases
+
+c) Blockchain Integration (src/lib/blockchain.ts)
+- IPFS record storage
+- Verification system
+- History tracking
+CRITICAL CONSIDERATIONS:
+- IPFS node availability
+- Hash verification timing
+- Storage limitations
+
+d) Chatbot System (src/components/chatbot/)
+- Context-aware responses
+- Multi-language support
+- Dynamic widget loading
+COMMON ISSUES:
+- State management complexity
+- Widget loading delays
+- Memory leaks in long sessions
+
+e) Notification Service (src/lib/notification-service.ts)
+- Email notifications
+- In-app alerts
+- Real-time updates
+WATCH OUT FOR:
+- Email rate limiting
+- Notification queue handling
+- Failed delivery retry logic
+
+3. DEVELOPMENT ENVIRONMENT
+-------------------------
+
+Required Tools:
+- Node.js 18+
+- npm 8+
+- Git
+- VS Code (recommended)
+
+VS Code Extensions:
+- ESLint
+- Prettier
+- Tailwind CSS IntelliSense
+- PostCSS Language Support
+
+Environment Setup:
+1. Clone repository
+2. Install dependencies
+3. Set up environment variables
+4. Initialize Supabase local dev
+5. Start development server
+
+COMMON SETUP ISSUES:
+- Node version conflicts
+- Package installation failures
+- Environment variable misconfigurations
+- Supabase CLI connection issues
+
+4. COMMON ISSUES & SOLUTIONS
+---------------------------
+
+a) Build Errors:
+- Issue: Node polyfill errors
+  Solution: Check next.config.js webpack configuration
+- Issue: Type definition conflicts
+  Solution: Clear TypeScript cache and rebuild
+
+b) Runtime Errors:
+- Issue: Memory leaks in real-time subscriptions
+  Solution: Properly unsubscribe in useEffect cleanup
+- Issue: Race conditions in state updates
+  Solution: Use proper state management patterns
+
+c) Performance Issues:
+- Issue: Slow initial page load
+  Solution: Implement proper code splitting
+- Issue: Real-time updates lag
+  Solution: Optimize subscription patterns
+
+d) Database Issues:
+- Issue: Connection pool exhaustion
+  Solution: Implement connection pooling
+- Issue: Row-level security conflicts
+  Solution: Review RLS policies
+
+5. PERFORMANCE CONSIDERATIONS
+----------------------------
+
+Critical Areas:
+1. File Processing
+   - Implement chunking for large files
+   - Use worker threads for OCR
+   - Cache processed results
+
+2. Real-time Updates
+   - Batch updates when possible
+   - Implement debouncing
+   - Use optimistic UI updates
+
+3. AI Processing
+   - Cache analysis results
+   - Implement request queuing
+   - Use web workers for heavy computation
+
+4. Database Queries
+   - Implement proper indexing
+   - Use query optimization
+   - Cache frequent queries
+
+6. SECURITY MEASURES
+-------------------
+
+a) Authentication:
+- JWT token handling
+- Role verification
+- Session management
+- CSRF protection
+
+b) Data Protection:
+- Row Level Security (RLS)
+- Input sanitization
+- XSS prevention
+- SQL injection protection
+
+c) File Security:
+- File type validation
+- Size limitations
+- Virus scanning
+- Secure storage
+
+d) API Security:
+- Rate limiting
+- Request validation
+- Error handling
+- Audit logging
+
+7. TESTING STRATEGY
+------------------
+
+Test Categories:
+1. Unit Tests
+   - Components
+   - Utilities
+   - Hooks
+   - Context providers
+
+2. Integration Tests
+   - API endpoints
+   - Database operations
+   - File processing
+   - Authentication flow
+
+3. E2E Tests
+   - User flows
+   - Form submissions
+   - Real-time updates
+   - File uploads
+
+4. Performance Tests
+   - Load testing
+   - Stress testing
+   - Memory leaks
+   - Network latency
+
+8. DEPLOYMENT PROCESS
+--------------------
+
+Deployment Environments:
+1. Development
+2. Staging
+3. Production
+
+Deployment Steps:
+1. Build verification
+2. Database migration
+3. Environment configuration
+4. SSL certificate setup
+5. CDN configuration
+6. Monitoring setup
+
+Rollback Procedure:
+1. Version identification
+2. Database state restore
+3. Code reversion
+4. Cache clearing
+5. Service restart
+
+9. MAINTENANCE GUIDELINES
+------------------------
+
+Daily Tasks:
+- Log monitoring
+- Error tracking
+- Performance monitoring
+- Backup verification
+
+Weekly Tasks:
+- Security updates
+- Dependency updates
+- Performance optimization
+- Database maintenance
+
+Monthly Tasks:
+- System audit
+- Analytics review
+- Capacity planning
+- Security review
+
+10. FUTURE IMPROVEMENTS
+----------------------
+
+Planned Features:
+1. Machine Learning Integration
+   - Advanced pattern recognition
+   - Automated response generation
+   - Predictive analytics
+
+2. Enhanced Security
+   - Two-factor authentication
+   - Biometric verification
+   - Advanced encryption
+
+3. Performance Optimization
+   - Edge computing implementation
+   - Advanced caching strategies
+   - Database optimization
+
+4. UI/UX Improvements
+   - Accessibility enhancements
+   - Mobile optimization
+   - Dark mode support
+
+CRITICAL WARNINGS
+----------------
+1. Never modify blockchain records directly
+2. Always handle file uploads with proper validation
+3. Maintain proper error boundaries in React components
+4. Never expose sensitive environment variables
+5. Always verify user permissions before operations
+6. Handle real-time subscription cleanup properly
+7. Implement proper error handling for AI processing
+8. Maintain proper database indexes
+9. Regular backup of IPFS records
+10. Proper logging of all critical operations
+
+CONTACT INFORMATION
+------------------
+For critical issues:
+- Technical Lead: tech.lead@grievance-system.com
+- DevOps Support: devops@grievance-system.com
+- Security Team: security@grievance-system.com
+
+EMERGENCY PROCEDURES
+------------------
+1. System Downtime:
+   - Check monitoring dashboard
+   - Review error logs
+   - Contact DevOps team
+   - Implement fallback procedures
+
+2. Data Issues:
+   - Pause incoming requests
+   - Check database logs
+   - Restore from backup if needed
+   - Verify data integrity
+
+3. Security Breaches:
+   - Isolate affected systems
+   - Review security logs
+   - Implement containment
+   - Contact security team
+
+Remember: This is a complex system with many moving parts. Always test thoroughly in staging before deploying to production, and maintain proper documentation for any changes made. 
