@@ -1,82 +1,162 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
-import { verifyGrievanceRecord, getGrievanceHistory } from '../../lib/blockchain';
-import type { Database } from '../../types/supabase';
-import type { GrievanceResponse, CategoryResponse } from '../../types/api';
+import { getWorkflowHistory } from '../../lib/workflow';
+import type { WorkflowState } from '@/types/supabase';
 
-type Status = Database['public']['Enums']['grievance_status'];
+type GrievanceWithWorkflow = {
+  id: string;
+  title: string;
+  status: string;
+  priority: string;
+  created_at: string;
+  category: {
+    name: string;
+  };
+  workflow?: {
+    currentState: WorkflowState;
+    history: Array<{
+      state: WorkflowState;
+      timestamp: string;
+      notes: string;
+    }>;
+  };
+};
 
 export default function TrackPage() {
-  const [grievances, setGrievances] = useState<(GrievanceResponse & { category: CategoryResponse })[]>([]);
+  const [grievances, setGrievances] = useState<GrievanceWithWorkflow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [verificationStatus, setVerificationStatus] = useState<Record<string, boolean>>({});
+  const [error, setError] = useState<string | null>(null);
   const [selectedGrievance, setSelectedGrievance] = useState<string | null>(null);
-  const [grievanceHistory, setGrievanceHistory] = useState<any[]>([]);
 
   useEffect(() => {
     fetchGrievances();
+
+    // Set up real-time subscription
+    const channel = supabase
+      .channel('grievances_changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'grievances'
+        },
+        () => {
+          fetchGrievances();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   const fetchGrievances = async () => {
     try {
-      const { data, error } = await supabase
+      setError(null);
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (!user) {
+        setError('Please login to view your grievances');
+        setGrievances([]);
+        setLoading(false);
+        return;
+      }
+
+      // Fetch grievances with their workflows in a single query
+      const { data: grievancesData, error: grievancesError } = await supabase
         .from('grievances')
         .select(`
-          *,
-          category:categories(*)
+          id,
+          title,
+          description,
+          status,
+          priority,
+          created_at,
+          category:categories!inner(
+            id,
+            name
+          ),
+          workflow:grievance_workflows!left(
+            current_state,
+            state_history
+          )
         `)
+        .eq('user_id', user.id)
         .order('created_at', { ascending: false });
 
-      if (error) throw error;
-      if (data) {
-        setGrievances(data);
-        // Verify each grievance
-        data.forEach(grievance => {
-          verifyGrievance(grievance.id);
-        });
+      if (grievancesError) {
+        console.error('Error fetching grievances:', grievancesError);
+        setError('Failed to load grievances');
+        setGrievances([]);
+        return;
       }
+
+      if (!grievancesData || grievancesData.length === 0) {
+        setGrievances([]);
+        return;
+      }
+
+      console.log('Raw grievances data:', grievancesData); // Debug log
+
+      // Transform the data to include workflow information
+      const transformedGrievances = grievancesData.map(grievance => ({
+        id: grievance.id,
+        title: grievance.title,
+        description: grievance.description,
+        status: grievance.status,
+        priority: grievance.priority,
+        created_at: grievance.created_at,
+        category: {
+          name: grievance.category?.[0]?.name || 'Unknown'
+        },
+        workflow: grievance.workflow?.[0] ? {
+          currentState: grievance.workflow[0].current_state,
+          history: grievance.workflow[0].state_history ? 
+            JSON.parse(grievance.workflow[0].state_history) : []
+        } : undefined
+      }));
+
+      console.log('Transformed grievances:', transformedGrievances); // Debug log
+      setGrievances(transformedGrievances);
     } catch (error) {
-      console.error('Error fetching grievances:', error);
+      console.error('Error:', error);
+      setError('An unexpected error occurred');
+      setGrievances([]);
     } finally {
       setLoading(false);
     }
   };
 
-  const verifyGrievance = async (grievanceId: string) => {
-    try {
-      const isVerified = await verifyGrievanceRecord(grievanceId);
-      setVerificationStatus(prev => ({
-        ...prev,
-        [grievanceId]: isVerified
-      }));
-    } catch (error) {
-      console.error('Error verifying grievance:', error);
-    }
-  };
+  // Add real-time subscription for workflow updates
+  useEffect(() => {
+    const workflowChannel = supabase
+      .channel('workflow_changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'grievance_workflows'
+        },
+        () => {
+          fetchGrievances();
+        }
+      )
+      .subscribe();
 
-  const viewHistory = async (grievanceId: string) => {
-    setSelectedGrievance(grievanceId);
-    try {
-      const history = await getGrievanceHistory(grievanceId);
-      setGrievanceHistory(history);
-    } catch (error) {
-      console.error('Error fetching history:', error);
-    }
-  };
+    return () => {
+      supabase.removeChannel(workflowChannel);
+    };
+  }, []);
 
-  const getStatusColor = (status: Status) => {
-    switch (status) {
-      case 'Pending':
-        return 'bg-yellow-100 text-yellow-800';
-      case 'In Progress':
-        return 'bg-blue-100 text-blue-800';
-      case 'Resolved':
-        return 'bg-green-100 text-green-800';
-      default:
-        return 'bg-gray-100 text-gray-800';
-    }
+  const formatState = (state: string) => {
+    return state.split('_').map(word => 
+      word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
+    ).join(' ');
   };
 
   if (loading) {
@@ -87,82 +167,131 @@ export default function TrackPage() {
     );
   }
 
+  if (error) {
+    return (
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="bg-red-50 border-l-4 border-red-400 p-4">
+          <div className="flex">
+            <div className="flex-shrink-0">
+              <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+              </svg>
+            </div>
+            <div className="ml-3">
+              <p className="text-sm text-red-700">{error}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
-      <div className="px-4 py-6 sm:px-0">
-        <h1 className="text-2xl font-semibold text-gray-900 mb-6">Track Grievances</h1>
-        
-        <div className="bg-white shadow overflow-hidden sm:rounded-md">
-          <ul className="divide-y divide-gray-200">
-            {grievances.map((grievance) => (
-              <li key={grievance.id}>
-                <div className="px-4 py-4 sm:px-6">
-                  <div className="flex items-center justify-between">
-                    <div className="flex-1">
-                      <h3 className="text-lg font-medium text-gray-900">{grievance.title}</h3>
-                      <p className="mt-1 text-sm text-gray-500">{grievance.description}</p>
-                    </div>
-                    <div className="ml-6 flex-shrink-0 flex flex-col items-end space-y-2">
-                      <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusColor(grievance.status)}`}>
-                        {grievance.status}
-                      </span>
-                      <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                        verificationStatus[grievance.id]
-                          ? 'bg-green-100 text-green-800'
-                          : 'bg-red-100 text-red-800'
-                      }`}>
-                        {verificationStatus[grievance.id] ? 'Verified' : 'Unverified'}
-                      </span>
-                    </div>
-                  </div>
-                  <div className="mt-2 sm:flex sm:justify-between">
-                    <div className="sm:flex">
-                      <p className="flex items-center text-sm text-gray-500">
-                        Category: {grievance.category.name}
-                      </p>
-                      <p className="mt-2 flex items-center text-sm text-gray-500 sm:mt-0 sm:ml-6">
-                        Language: {grievance.language}
-                      </p>
-                      <p className="mt-2 flex items-center text-sm text-gray-500 sm:mt-0 sm:ml-6">
-                        Priority: {grievance.priority}
-                      </p>
-                    </div>
-                    <div className="mt-2 flex items-center text-sm text-gray-500 sm:mt-0">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="bg-white shadow overflow-hidden sm:rounded-lg">
+        <div className="px-4 py-5 sm:px-6">
+          <h3 className="text-lg leading-6 font-medium text-gray-900">Track Your Grievances</h3>
+          <p className="mt-1 max-w-2xl text-sm text-gray-500">
+            View the status and progress of your submitted grievances
+          </p>
+        </div>
+
+        <div className="border-t border-gray-200">
+          {grievances.length === 0 ? (
+            <div className="px-4 py-5 sm:px-6 text-center text-gray-500">
+              No grievances found
+            </div>
+          ) : (
+            <div className="divide-y divide-gray-200">
+              {grievances.map((grievance) => (
+                <div key={grievance.id} className="p-4">
+                  <div className="mb-4">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <h4 className="text-lg font-medium text-gray-900">{grievance.title}</h4>
+                        <p className="mt-1 text-sm text-gray-500">
+                          Category: {grievance.category.name}
+                        </p>
+                      </div>
                       <button
-                        onClick={() => viewHistory(grievance.id)}
+                        onClick={() => setSelectedGrievance(
+                          selectedGrievance === grievance.id ? null : grievance.id
+                        )}
                         className="text-indigo-600 hover:text-indigo-900"
                       >
-                        View History
+                        {selectedGrievance === grievance.id ? 'Hide Details' : 'Show Details'}
                       </button>
                     </div>
                   </div>
-                </div>
 
-                {selectedGrievance === grievance.id && grievanceHistory.length > 0 && (
-                  <div className="px-4 py-3 bg-gray-50">
-                    <h4 className="text-sm font-medium text-gray-900 mb-2">History</h4>
-                    <div className="space-y-2">
-                      {grievanceHistory.map((record, index) => (
-                        <div key={index} className="text-sm text-gray-600">
-                          {record.type === 'status_update' ? (
-                            <p>
-                              Status changed from {record.oldStatus} to {record.newStatus} on{' '}
-                              {new Date(record.timestamp).toLocaleString()}
-                            </p>
-                          ) : (
-                            <p>
-                              {record.type} recorded on{' '}
-                              {new Date(record.timestamp).toLocaleString()}
-                            </p>
-                          )}
+                  {selectedGrievance === grievance.id && grievance.workflow && (
+                    <div className="mt-4 border-t border-gray-200 pt-4">
+                      <div className="mb-4">
+                        <h5 className="text-sm font-medium text-gray-900">Current State</h5>
+                        <p className="mt-1 text-sm text-indigo-600">
+                          {formatState(grievance.workflow.currentState)}
+                        </p>
+                      </div>
+
+                      <div>
+                        <h5 className="text-sm font-medium text-gray-900 mb-2">Progress Timeline</h5>
+                        <div className="flow-root">
+                          <ul className="-mb-8">
+                            {grievance.workflow.history.map((item, index) => (
+                              <li key={index}>
+                                <div className="relative pb-8">
+                                  {index !== grievance.workflow.history.length - 1 && (
+                                    <span
+                                      className="absolute top-4 left-4 -ml-px h-full w-0.5 bg-gray-200"
+                                      aria-hidden="true"
+                                    />
+                                  )}
+                                  <div className="relative flex space-x-3">
+                                    <div>
+                                      <span className="h-8 w-8 rounded-full bg-indigo-500 flex items-center justify-center ring-8 ring-white">
+                                        <svg
+                                          className="h-5 w-5 text-white"
+                                          fill="none"
+                                          viewBox="0 0 24 24"
+                                          stroke="currentColor"
+                                        >
+                                          <path
+                                            strokeLinecap="round"
+                                            strokeLinejoin="round"
+                                            strokeWidth="2"
+                                            d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                                          />
+                                        </svg>
+                                      </span>
+                                    </div>
+                                    <div className="min-w-0 flex-1 pt-1.5 flex justify-between space-x-4">
+                                      <div>
+                                        <p className="text-sm text-gray-500">
+                                          {formatState(item.state)}
+                                          {item.notes && (
+                                            <span className="font-medium text-gray-900">
+                                              : {item.notes}
+                                            </span>
+                                          )}
+                                        </p>
+                                      </div>
+                                      <div className="text-right text-sm whitespace-nowrap text-gray-500">
+                                        {new Date(item.timestamp).toLocaleString()}
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                              </li>
+                            ))}
+                          </ul>
                         </div>
-                      ))}
+                      </div>
                     </div>
-                  </div>
-                )}
-              </li>
-            ))}
-          </ul>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>

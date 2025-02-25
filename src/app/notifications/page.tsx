@@ -20,10 +20,21 @@ export default function NotificationsPage() {
 
   useEffect(() => {
     fetchNotifications();
-    setupRealtimeSubscription();
+    
+    // Set up real-time subscription
+    const channel = supabase
+      .channel('notifications-channel')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'notifications' },
+        (payload) => {
+          fetchNotifications();
+        }
+      )
+      .subscribe();
 
     return () => {
-      supabase.removeAllSubscriptions();
+      channel.unsubscribe();
     };
   }, []);
 
@@ -45,27 +56,6 @@ export default function NotificationsPage() {
     } finally {
       setLoading(false);
     }
-  };
-
-  const setupRealtimeSubscription = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
-
-    supabase
-      .channel('notifications')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'notifications',
-          filter: `user_id=eq.${user.id}`,
-        },
-        () => {
-          fetchNotifications();
-        }
-      )
-      .subscribe();
   };
 
   const handleMarkAsRead = async (notificationId: string) => {

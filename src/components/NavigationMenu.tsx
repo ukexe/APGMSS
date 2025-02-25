@@ -33,6 +33,7 @@ const NavigationMenu: React.FC = () => {
 
     if (userRole === 'admin') {
       links.push({ href: '/admin', text: 'Admin Dashboard' });
+      links.push({ href: '/admin/grievances', text: 'Manage Grievances' });
     }
 
     if (process.env.NODE_ENV === 'development') {

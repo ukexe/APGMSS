@@ -40,18 +40,31 @@ async function processImage(file: File): Promise<FileProcessingResult> {
     // Convert File to base64
     const base64Data = await fileToBase64(file);
     
-    // Recognize text
+    // Initialize worker with both English and Tamil
     await worker.loadLanguage('eng+tam');
     await worker.initialize('eng+tam');
+    
+    // Set PSM to handle mixed text better
+    await worker.setParameters({
+      tessedit_pageseg_mode: '6', // Assume uniform text block
+      tessedit_ocr_engine_mode: '3', // Legacy + LSTM mode
+      preserve_interword_spaces: '1',
+    });
+    
     const { data: { text } } = await worker.recognize(base64Data);
     
     await worker.terminate();
+    
+    if (!text.trim()) {
+      throw new Error('No text could be extracted from the image');
+    }
     
     return { text: text.trim() };
   } catch (error) {
     if (worker) {
       await worker.terminate();
     }
+    console.error('Image processing error:', error);
     throw error;
   }
 }
@@ -63,11 +76,38 @@ async function processPDF(file: File): Promise<FileProcessingResult> {
     
     // Extract text from PDF
     const data = await pdfExtract.extractBuffer(arrayBuffer, {});
-    const text = data.pages.map(page => page.content.join(' ')).join('\n');
+    let text = data.pages.map(page => page.content.join(' ')).join('\n');
+    
+    // If text is empty, try OCR on the PDF
+    if (!text.trim()) {
+      const worker = await createWorker();
+      try {
+        await worker.loadLanguage('eng+tam');
+        await worker.initialize('eng+tam');
+        
+        // Process each page
+        for (let i = 0; i < data.pages.length; i++) {
+          const { data: { text: pageText } } = await worker.recognize(data.pages[i].canvas);
+          text += pageText + '\n';
+        }
+        
+        await worker.terminate();
+      } catch (ocrError) {
+        console.error('OCR error:', ocrError);
+        if (worker) {
+          await worker.terminate();
+        }
+      }
+    }
+    
+    if (!text.trim()) {
+      throw new Error('No text could be extracted from the PDF');
+    }
     
     return { text: text.trim() };
   } catch (error) {
-    throw new Error('Failed to process PDF file');
+    console.error('PDF processing error:', error);
+    throw new Error(error instanceof Error ? error.message : 'Failed to process PDF file');
   }
 }
 

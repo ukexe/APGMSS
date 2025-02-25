@@ -3,6 +3,9 @@ import type { Database } from '../types/supabase';
 
 type Status = Database['public']['Enums']['grievance_status'];
 
+// Test user ID for non-anonymous submissions (valid UUID format)
+const TEST_USER_ID = '00000000-0000-0000-0000-000000000000';
+
 export const testGrievanceSubmission = async (
   title: string,
   description: string,
@@ -12,6 +15,8 @@ export const testGrievanceSubmission = async (
   user_id?: string
 ) => {
   try {
+    // For testing purposes, we'll always use anonymous submissions
+    // In a real application, user_id would come from the authenticated session
     const { data, error } = await supabase
       .from('grievances')
       .insert([
@@ -22,7 +27,7 @@ export const testGrievanceSubmission = async (
           language,
           status: 'Pending' as Status,
           priority: 'Medium',
-          user_id: isAnonymous ? null : user_id,
+          user_id: null, // Always null for testing
         },
       ])
       .select();

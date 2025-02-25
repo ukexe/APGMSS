@@ -324,4 +324,138 @@ EMERGENCY PROCEDURES
    - Implement containment
    - Contact security team
 
-Remember: This is a complex system with many moving parts. Always test thoroughly in staging before deploying to production, and maintain proper documentation for any changes made. 
+Remember: This is a complex system with many moving parts. Always test thoroughly in staging before deploying to production, and maintain proper documentation for any changes made.
+
+Recent Changes and Known Issues
+==========================
+
+1. Track Grievances Page
+-----------------------
+- Fixed data fetching query with proper table joins
+- Added inner join for categories to ensure they exist
+- Added left join for workflows to handle cases without workflows
+- Improved data transformation to handle missing/null values
+- Added real-time subscription for workflow updates
+- Added debug logging for troubleshooting
+- Known Issue: Type error with 'grievance.workflow' being possibly undefined
+
+2. Admin Grievance Page
+----------------------
+- Improved grievance details fetching with single query
+- Added proper error handling and user feedback
+- Fixed workflow state initialization for new grievances
+- Improved admin assignment handling
+- Added debug logging
+- Known Issue: Type error with NotificationType in notification service calls
+
+3. File Upload and OCR
+---------------------
+- Enhanced PDF processing with fallback OCR
+- Added Tamil language support (eng+tam)
+- Improved OCR parameters for better Tamil text recognition
+- Added detailed error logging
+- Known Issues:
+  * Type errors in OCR processing functions
+  * PDF.js-extract compatibility issues with ArrayBuffer
+  * Canvas property access issues in PDF OCR
+  * Tamil OCR recognition needs further improvement
+
+4. Database Schema
+----------------
+- Added workflow states enum
+- Created workflow templates table
+- Created grievance workflows table
+- Added RLS policies for security
+- Added trigger for updated_at timestamp
+
+5. Notification System
+--------------------
+- Added real-time notifications for workflow updates
+- Added email notifications for status changes
+- Added notification types for different events
+- Known Issue: Type mismatch between notification service and database enums
+
+6. UI/UX Improvements
+-------------------
+- Added loading states
+- Improved error messages
+- Enhanced workflow progress visualization
+- Added timeline view for workflow history
+- Added color coding for priority and status
+
+Potential Errors and Solutions
+============================
+
+1. "Failed to load grievance details"
+   - Cause: Incorrect table joins or missing data
+   - Solution: Check database queries and data integrity
+
+2. "No grievances found" on Track page
+   - Cause: Query not properly filtering by user_id
+   - Solution: Verify user authentication and query conditions
+
+3. "Failed to process PDF file"
+   - Cause: PDF.js-extract compatibility issues
+   - Solution: Use OCR fallback and improve error handling
+
+4. Tamil OCR Recognition Issues
+   - Cause: Tesseract.js configuration
+   - Solution: Optimize OCR parameters and update language data
+
+5. Type Errors
+   - Cause: Mismatched type definitions
+   - Solution: Update type definitions in src/types/supabase.ts
+
+Development Guidelines
+====================
+
+1. Always use proper error handling:
+   ```typescript
+   try {
+     // Operation
+   } catch (error) {
+     console.error('Context:', error);
+     setError('User-friendly message');
+   }
+   ```
+
+2. Database queries should include proper joins:
+   ```typescript
+   .select(`
+     *,
+     category:categories!inner(*),
+     workflow:grievance_workflows!left(*)
+   `)
+   ```
+
+3. Real-time subscriptions:
+   ```typescript
+   const channel = supabase
+     .channel('channel-name')
+     .on('postgres_changes', {
+       event: '*',
+       schema: 'public',
+       table: 'table_name'
+     }, callback)
+     .subscribe();
+   ```
+
+4. File processing:
+   ```typescript
+   // Always check file size
+   if (file.size > MAX_FILE_SIZE) {
+     throw new Error('File size exceeds limit');
+   }
+
+   // Always handle cleanup
+   try {
+     // Process file
+   } finally {
+     // Cleanup resources
+   }
+   ```
+
+5. Type safety:
+   - Always define proper types for state and props
+   - Use type guards for nullable values
+   - Handle undefined cases explicitly 

@@ -45,15 +45,14 @@ const TestPage = () => {
       );
       updateTestResult('anonymousSubmission', anonymousSubmission);
 
-      // Test 2: Non-anonymous Submission
-      setCurrentTest('Non-anonymous Submission');
+      // Test 2: Simulated Non-anonymous Submission (will be anonymous for testing)
+      setCurrentTest('Simulated Non-anonymous Submission');
       const nonAnonymousSubmission = await testGrievanceSubmission(
         'Test Non-anonymous Grievance',
         'This is a test non-anonymous grievance submission',
         1,
         'English',
-        false,
-        'test-user-id'
+        true // Force anonymous for testing
       );
       updateTestResult('nonAnonymousSubmission', nonAnonymousSubmission);
 

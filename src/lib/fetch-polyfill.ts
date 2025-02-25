@@ -1,3 +1,5 @@
 import 'cross-fetch/polyfill';
 
-export default fetch; 
+// Re-export the global fetch function
+const fetchPolyfill = globalThis.fetch;
+export default fetchPolyfill; 

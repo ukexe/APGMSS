@@ -13,6 +13,8 @@ const nextConfig = {
         dns: false,
         child_process: false,
         canvas: false,
+        fetch: false,
+        'cross-fetch': require.resolve('cross-fetch'),
       };
     }
     return config;
